@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Admin - HSV Thresholds</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 700px; margin: 2rem; }
+      label { display:block; margin-top: 0.5rem }
+      input { width: 100%; padding: 0.4rem; }
+      .row { margin-bottom: 1rem }
+      .msg { margin-top: 1rem; color: green }
+      .err { margin-top: 1rem; color: red }
+    </style>
+  </head>
+  <body>
+    <h1>Admin — HSV Thresholds</h1>
+    {% if success %}
+      <div class="msg">{{ success }}</div>
+    {% endif %}
+    {% if error %}
+      <div class="err">{{ error }}</div>
+    {% endif %}
+    <form method="post">
+      <div class="row">
+        <label>GREEN_H_MIN</label>
+        <input name="GREEN_H_MIN" value="{{ GREEN_H_MIN }}" />
+      </div>
+      <div class="row">
+        <label>GREEN_H_MAX</label>
+        <input name="GREEN_H_MAX" value="{{ GREEN_H_MAX }}" />
+      </div>
+      <div class="row">
+        <label>S_MIN</label>
+        <input name="S_MIN" value="{{ S_MIN }}" />
+      </div>
+      <div class="row">
+        <label>V_MIN</label>
+        <input name="V_MIN" value="{{ V_MIN }}" />
+      </div>
+      <div class="row">
+        <label>GREEN_PROP_THRESH (proportion, e.g. 0.03)</label>
+        <input name="GREEN_PROP_THRESH" value="{{ GREEN_PROP_THRESH }}" />
+      </div>
+      <button type="submit">Save</button>
+    </form>
+  </body>
+</html>
