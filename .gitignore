@@ -1,0 +1,15 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+instance/
+*.sqlite3
+models/*.h5
+static/uploads/
+.vscode/
+dist/
+build/
+*.egg-info/
+Dockerfile
+\.dockerignore
