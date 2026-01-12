@@ -1,0 +1,153 @@
+name: Build, Publish, Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      integration_image:
+        description: 'Optional image to use for integration test (overrides secret)'
+        required: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile.allinone
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/tomato-app:latest
+            ghcr.io/${{ github.repository_owner }}/tomato-app:${{ github.sha }}
+          build-args: |
+            MODEL_URL=${{ secrets.MODEL_URL }}
+
+      - name: Integration test (local container)
+        run: |
+          # Resolve integration image: workflow input -> repo secret -> default GHCR
+          IMAGE_INPUT='${{ github.event.inputs.integration_image }}'
+          IMAGE_SECRET='${{ secrets.INTEGRATION_IMAGE }}'
+          if [ -n "$IMAGE_INPUT" ] && [ "$IMAGE_INPUT" != 'null' ]; then
+            IMAGE="$IMAGE_INPUT"
+          elif [ -n "$IMAGE_SECRET" ]; then
+            IMAGE="$IMAGE_SECRET"
+          else
+            IMAGE=ghcr.io/${{ github.repository_owner }}/tomato-app:latest
+          fi
+
+          echo "Using image: $IMAGE"
+          echo "Running integration container from $IMAGE"
+          docker run -d --name integration_test -p 5000:5000 -e PORT=5000 -e GREEN_PROP_THRESH=0 -e CONF_THRESH=0 $IMAGE
+
+          echo "Waiting for service to become healthy..."
+          for i in {1..15}; do
+            if curl --silent --fail http://localhost:5000/health; then
+              echo "Service healthy"
+              break
+            fi
+            echo "Waiting... ($i)"
+            sleep 2
+          done
+
+          echo "Creating sample PNG..."
+          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBAQEA7nQAAAAASUVORK5CYII=' | base64 --decode > sample.png
+
+          echo "Posting sample to /api/predict"
+          HTTP_CODE=$(curl --write-out "%{http_code}" --silent --output response.json -X POST -F "file=@sample.png" http://localhost:5000/api/predict || true)
+          echo "Response code: $HTTP_CODE"
+          cat response.json || true
+          if [ "$HTTP_CODE" != "200" ]; then
+            docker logs integration_test || true
+            docker stop integration_test || true
+            docker rm integration_test || true
+            exit 1
+          fi
+
+          echo "Asserting JSON contains 'prediction' field"
+          python3 - <<'PY'
+import json,sys
+try:
+    j=json.load(open('response.json'))
+except Exception as e:
+    print('Failed to load response.json:', e)
+    sys.exit(2)
+if 'prediction' not in j:
+    print('Missing prediction field in response:', j)
+    sys.exit(3)
+print('Found prediction:', j.get('prediction'))
+PY
+
+          echo "Integration test passed; cleaning up"
+          docker stop integration_test || true
+          docker rm integration_test || true
+
+      - name: Log in to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_PASSWORD != '' }}
+        uses: docker/login-action@v2
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and push to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_PASSWORD != '' }}
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile.allinone
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/tomato-app:latest
+          build-args: |
+            MODEL_URL=${{ secrets.MODEL_URL }}
+
+      - name: Authenticate to Google Cloud (optional)
+        if: ${{ secrets.GCP_SA_KEY != '' }}
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy to Cloud Run (optional)
+        if: ${{ secrets.GCP_SA_KEY != '' }}
+        uses: google-github-actions/deploy-cloudrun@v0
+        with:
+          service: tomato-app
+          image: ghcr.io/${{ github.repository_owner }}/tomato-app:latest
+          region: ${{ secrets.GCP_REGION || 'us-central1' }}
+          project_id: ${{ secrets.GCP_PROJECT }}
+
+      - name: Get Cloud Run URL
+        if: ${{ secrets.GCP_SA_KEY != '' }}
+        env:
+          REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
+        run: |
+          URL=$(gcloud run services describe tomato-app --platform managed --region "$REGION" --format='value(status.url)')
+          echo "SERVICE_URL=$URL" >> $GITHUB_ENV
+
+      - name: Health check Cloud Run
+        if: ${{ secrets.GCP_SA_KEY != '' }}
+        run: |
+          echo "Checking $SERVICE_URL/health"
+          curl --fail --show-error --silent $SERVICE_URL/health

@@ -1,11 +1,16 @@
 import os
 from flask import Flask, request, render_template, jsonify
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import numpy as np
 from PIL import Image
 import tensorflow as tf
+import logging
+import json
+import shutil
 
 app = Flask(__name__)
+CORS(app)
 
 # Configure upload folder and allowed extensions
 UPLOAD_FOLDER = 'static/uploads'
@@ -20,6 +25,9 @@ GREEN_H_MAX = int(os.getenv('GREEN_H_MAX', 100))
 S_MIN = int(os.getenv('S_MIN', 40))
 V_MIN = int(os.getenv('V_MIN', 40))
 GREEN_PROP_THRESH = float(os.getenv('GREEN_PROP_THRESH', 0.03))
+
+# Prediction confidence threshold (below this -> mark as 'Uncertain')
+CONF_THRESH = float(os.getenv('CONF_THRESH', 0.6))
 
 # Persisted config file for admin-tuned thresholds
 CONFIG_PATH = 'config.json'
@@ -53,6 +61,15 @@ GREEN_PROP_THRESH = float(_cfg.get('GREEN_PROP_THRESH', GREEN_PROP_THRESH))
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Debug helpers
+DEBUG_DIR = os.path.join(UPLOAD_FOLDER, 'debug')
+DEBUG_LOG = os.path.join(DEBUG_DIR, 'debug_logs.jsonl')
+os.makedirs(DEBUG_DIR, exist_ok=True)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+logger = logging.getLogger(__name__)
 
 # Disease class labels
 class_labels = [
@@ -186,6 +203,99 @@ def make_mask_overlay(image_path):
 @app.route('/health')
 def health_check():
     return jsonify({"status": "ok"})
+
+
+@app.route('/api/predict', methods=['POST'])
+def api_predict():
+    """JSON API endpoint for mobile apps: accepts multipart form with 'file' and returns prediction JSON."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Invalid file type. Allowed: png,jpg,jpeg'}), 400
+
+    try:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+
+        # Optional leaf detection (reuse page logic)
+        global leaf_detector
+        if leaf_detector is None:
+            leaf_detector = load_leaf_detector()
+
+        if leaf_detector is not None:
+            try:
+                ld_img = Image.open(filepath).convert('RGB').resize((128,128))
+                ld_arr = np.array(ld_img).astype('float32') / 255.0
+                ld_arr = np.expand_dims(ld_arr, axis=0)
+                pred = leaf_detector.predict(ld_arr)[0][0]
+                if float(pred) < 0.5:
+                    try:
+                        os.remove(filepath)
+                    except Exception:
+                        pass
+                    return jsonify({'error': 'Uploaded image does not appear to contain a tomato leaf.'}), 400
+            except Exception:
+                pass
+
+        if leaf_detector is None and not is_leaf_image(filepath):
+            try:
+                os.remove(filepath)
+            except Exception:
+                pass
+            return jsonify({'error': 'Uploaded image does not appear to contain a tomato leaf.'}), 400
+
+        processed_image = preprocess_image(filepath)
+
+        global model
+        if model is None:
+            model = load_model()
+            if model is None:
+                return jsonify({'error': 'Model not found on server.'}), 500
+
+        predictions = model.predict(processed_image)
+        top_idx = int(np.argmax(predictions[0]))
+        top_prob = float(np.max(predictions[0]))
+        confidence = top_prob * 100
+        predicted_class = class_labels[top_idx] if top_prob >= CONF_THRESH else 'Uncertain'
+
+        # create mask overlay if requested (best-effort)
+        maskname = None
+        try:
+            maskname = make_mask_overlay(filepath)
+        except Exception:
+            maskname = None
+
+        # Save debug info (append JSON line)
+        try:
+            debug_entry = {
+                'endpoint': 'api/predict',
+                'filename': filename,
+                'prediction': predicted_class,
+                'confidence': round(confidence, 2),
+                'uncertain': top_prob < CONF_THRESH,
+                'raw_predictions': [float(x) for x in predictions[0]]
+            }
+            with open(DEBUG_LOG, 'a', encoding='utf-8') as df:
+                df.write(json.dumps(debug_entry) + '\n')
+            # also copy the uploaded file to debug folder for inspection
+            shutil.copy2(filepath, os.path.join(DEBUG_DIR, filename))
+        except Exception as e:
+            logger.info(f"Failed to write debug info: {e}")
+
+        return jsonify({
+            'filename': filename,
+            'prediction': predicted_class,
+            'confidence': round(confidence, 2),
+            'mask': maskname
+        })
+    except Exception as e:
+        return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
 
 @app.route('/admin', methods=['GET', 'POST'])
@@ -331,9 +441,26 @@ def upload_file():
                                                error="Model not found. Please place tomato_model.h5 in the models directory.")
 
                 # Make prediction
-                predictions = model.predict(processed_image)
-                predicted_class = class_labels[np.argmax(predictions[0])]
-                confidence = float(np.max(predictions[0]) * 100)
+                top_idx = int(np.argmax(predictions[0]))
+                top_prob = float(np.max(predictions[0]))
+                confidence = top_prob * 100
+                predicted_class = class_labels[top_idx] if top_prob >= CONF_THRESH else 'Uncertain'
+
+                # Save debug info for web uploads as well
+                try:
+                    debug_entry = {
+                        'endpoint': 'web/upload',
+                        'filename': filename,
+                        'prediction': predicted_class,
+                        'confidence': round(confidence, 2),
+                        'uncertain': top_prob < CONF_THRESH,
+                        'raw_predictions': [float(x) for x in predictions[0]]
+                    }
+                    with open(DEBUG_LOG, 'a', encoding='utf-8') as df:
+                        df.write(json.dumps(debug_entry) + '\n')
+                    shutil.copy2(filepath, os.path.join(DEBUG_DIR, filename))
+                except Exception as e:
+                    logger.info(f"Failed to write debug info: {e}")
 
                 return render_template('index.html',
                                     filename=filename,
@@ -351,10 +478,10 @@ if __name__ == '__main__':
     # Create upload folder if it doesn't exist
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     
-    # Check if model exists and print status
-    if model is None:
-        print("Warning: Model not found. Please place tomato_model.h5 in the models directory.")
+    # Check if model file exists and print status
+    if os.path.exists(MODEL_PATH):
+        print("Model file found.")
     else:
-        print("Model loaded successfully!")
+        print("Warning: Model not found. Please place tomato_model.h5 in the models directory.")
     
     app.run(debug=True)

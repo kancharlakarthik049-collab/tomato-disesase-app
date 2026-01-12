@@ -1,0 +1,38 @@
+FROM tensorflow/tensorflow:2.10.0
+
+WORKDIR /app
+
+# Copy project (including app and requirements). Note: large model files are
+# downloaded during build if `MODEL_URL` build-arg is provided.
+COPY . /app
+
+# Upgrade pip and install Python deps
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
+
+# Allow passing a model URL at build time. If provided, download the model
+# into `models/tomato_model.h5` during the image build so the image is
+# self-contained.
+ARG MODEL_URL=""
+ENV MODEL_URL=${MODEL_URL}
+
+RUN mkdir -p models \
+    && if [ -n "$MODEL_URL" ] && [ ! -f models/tomato_model.h5 ]; then \
+        python - <<'PY'
+import os,sys
+url=os.environ.get('MODEL_URL')
+if not url:
+    sys.exit(0)
+print('Downloading model from', url)
+from urllib.request import urlopen, Request
+req = Request(url, headers={'User-Agent':'curl/7.64'})
+with urlopen(req, timeout=120) as r, open('models/tomato_model.h5','wb') as f:
+    f.write(r.read())
+PY
+    ; fi
+
+ENV PORT=5000
+EXPOSE 5000
+
+# Use shell form so environment variable substitution works at container runtime
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5000} app:app"]
