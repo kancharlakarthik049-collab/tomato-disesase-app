@@ -67,6 +67,7 @@ tomato_disease_app/
    - Predicted condition
    - Confidence score
 
+<<<<<<< HEAD
 Mobile app (Expo)
 ------------------
 
@@ -103,6 +104,8 @@ pip install pytest
 pytest tests/test_api_health.py
 ```
 
+=======
+>>>>>>> a17aef9ddcd5f1388b27f3a97ec1ef9a16beaa98
 ## Supported Image Formats
 
 - JPG/JPEG

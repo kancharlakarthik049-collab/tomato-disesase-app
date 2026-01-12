@@ -1,16 +1,24 @@
 import os
 from flask import Flask, request, render_template, jsonify
+<<<<<<< HEAD
 from flask_cors import CORS
+=======
+>>>>>>> a17aef9ddcd5f1388b27f3a97ec1ef9a16beaa98
 from werkzeug.utils import secure_filename
 import numpy as np
 from PIL import Image
 import tensorflow as tf
+<<<<<<< HEAD
 import logging
 import json
 import shutil
 
 app = Flask(__name__)
 CORS(app)
+=======
+
+app = Flask(__name__)
+>>>>>>> a17aef9ddcd5f1388b27f3a97ec1ef9a16beaa98
 
 # Configure upload folder and allowed extensions
 UPLOAD_FOLDER = 'static/uploads'
@@ -26,9 +34,12 @@ S_MIN = int(os.getenv('S_MIN', 40))
 V_MIN = int(os.getenv('V_MIN', 40))
 GREEN_PROP_THRESH = float(os.getenv('GREEN_PROP_THRESH', 0.03))
 
+<<<<<<< HEAD
 # Prediction confidence threshold (below this -> mark as 'Uncertain')
 CONF_THRESH = float(os.getenv('CONF_THRESH', 0.6))
 
+=======
+>>>>>>> a17aef9ddcd5f1388b27f3a97ec1ef9a16beaa98
 # Persisted config file for admin-tuned thresholds
 CONFIG_PATH = 'config.json'
 
@@ -62,6 +73,7 @@ GREEN_PROP_THRESH = float(_cfg.get('GREEN_PROP_THRESH', GREEN_PROP_THRESH))
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
+<<<<<<< HEAD
 # Debug helpers
 DEBUG_DIR = os.path.join(UPLOAD_FOLDER, 'debug')
 DEBUG_LOG = os.path.join(DEBUG_DIR, 'debug_logs.jsonl')
@@ -71,6 +83,8 @@ os.makedirs(DEBUG_DIR, exist_ok=True)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
+=======
+>>>>>>> a17aef9ddcd5f1388b27f3a97ec1ef9a16beaa98
 # Disease class labels
 class_labels = [
     'Bacterial_spot', 'Early_blight', 'Late_blight',
@@ -205,6 +219,7 @@ def health_check():
     return jsonify({"status": "ok"})
 
 
+<<<<<<< HEAD
 @app.route('/api/predict', methods=['POST'])
 def api_predict():
     """JSON API endpoint for mobile apps: accepts multipart form with 'file' and returns prediction JSON."""
@@ -298,6 +313,8 @@ def api_predict():
         return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
 
+=======
+>>>>>>> a17aef9ddcd5f1388b27f3a97ec1ef9a16beaa98
 @app.route('/admin', methods=['GET', 'POST'])
 def admin_page():
     """Simple admin UI to view/update HSV thresholds."""
@@ -441,6 +458,7 @@ def upload_file():
                                                error="Model not found. Please place tomato_model.h5 in the models directory.")
 
                 # Make prediction
+<<<<<<< HEAD
                 top_idx = int(np.argmax(predictions[0]))
                 top_prob = float(np.max(predictions[0]))
                 confidence = top_prob * 100
@@ -461,6 +479,11 @@ def upload_file():
                     shutil.copy2(filepath, os.path.join(DEBUG_DIR, filename))
                 except Exception as e:
                     logger.info(f"Failed to write debug info: {e}")
+=======
+                predictions = model.predict(processed_image)
+                predicted_class = class_labels[np.argmax(predictions[0])]
+                confidence = float(np.max(predictions[0]) * 100)
+>>>>>>> a17aef9ddcd5f1388b27f3a97ec1ef9a16beaa98
 
                 return render_template('index.html',
                                     filename=filename,
@@ -478,10 +501,18 @@ if __name__ == '__main__':
     # Create upload folder if it doesn't exist
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     
+<<<<<<< HEAD
     # Check if model file exists and print status
     if os.path.exists(MODEL_PATH):
         print("Model file found.")
     else:
         print("Warning: Model not found. Please place tomato_model.h5 in the models directory.")
+=======
+    # Check if model exists and print status
+    if model is None:
+        print("Warning: Model not found. Please place tomato_model.h5 in the models directory.")
+    else:
+        print("Model loaded successfully!")
+>>>>>>> a17aef9ddcd5f1388b27f3a97ec1ef9a16beaa98
     
     app.run(debug=True)
