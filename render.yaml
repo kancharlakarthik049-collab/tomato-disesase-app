@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: tomato-disease-identification
+    env: docker
+    branch: main
+    plan: free
+    dockerfilePath: Dockerfile
