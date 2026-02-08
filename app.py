@@ -65,6 +65,32 @@ class_labels = [
 ]
 
 # Load the model (with error handling)
+def download_from_google_drive(file_id, destination):
+    """Download large files from Google Drive, handling virus scan confirmation."""
+    import requests
+    URL = "https://drive.google.com/uc?export=download"
+    session = requests.Session()
+    
+    response = session.get(URL, params={'id': file_id}, stream=True, timeout=120)
+    
+    # Check for confirmation token (required for large files)
+    token = None
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            token = value
+            break
+    
+    if token:
+        params = {'id': file_id, 'confirm': token}
+        response = session.get(URL, params=params, stream=True, timeout=120)
+    
+    # Save the file
+    with open(destination, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=32768):
+            if chunk:
+                f.write(chunk)
+    print(f"Model downloaded successfully to {destination}")
+
 def load_model():
     try:
         # If model is missing but a download URL is provided, try to fetch it
@@ -73,14 +99,29 @@ def load_model():
             try:
                 import requests
                 os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-                resp = requests.get(model_url, stream=True, timeout=60)
-                if resp.status_code == 200:
-                    with open(MODEL_PATH, 'wb') as f:
-                        for chunk in resp.iter_content(chunk_size=8192):
-                            if chunk:
-                                f.write(chunk)
+                print(f"Downloading model from {model_url}...")
+                
+                # Check if it's a Google Drive link
+                if 'drive.google.com' in model_url:
+                    # Extract file ID from various Google Drive URL formats
+                    if '/d/' in model_url:
+                        file_id = model_url.split('/d/')[1].split('/')[0]
+                    elif 'id=' in model_url:
+                        file_id = model_url.split('id=')[1].split('&')[0]
+                    else:
+                        file_id = model_url
+                    download_from_google_drive(file_id, MODEL_PATH)
                 else:
-                    print(f"Failed to download model, status: {resp.status_code}")
+                    # Regular URL download
+                    resp = requests.get(model_url, stream=True, timeout=120)
+                    if resp.status_code == 200:
+                        with open(MODEL_PATH, 'wb') as f:
+                            for chunk in resp.iter_content(chunk_size=32768):
+                                if chunk:
+                                    f.write(chunk)
+                        print("Model downloaded successfully!")
+                    else:
+                        print(f"Failed to download model, status: {resp.status_code}")
             except Exception as e:
                 print(f"Error downloading model from MODEL_URL: {e}")
 
