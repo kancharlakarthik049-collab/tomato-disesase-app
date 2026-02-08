@@ -126,11 +126,15 @@ def load_model():
         model_url = os.getenv('MODEL_URL')
         hf_token = os.getenv('HF_TOKEN')  # Optional: for private Hugging Face repos
         
+        print(f"[DEBUG] MODEL_PATH: {MODEL_PATH}")
+        print(f"[DEBUG] MODEL_URL from env: {model_url}")
+        print(f"[DEBUG] Model exists: {os.path.exists(MODEL_PATH)}")
+        
         if not os.path.exists(MODEL_PATH) and model_url:
             try:
                 import requests
                 os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-                print(f"Downloading model from {model_url}...")
+                print(f"[INFO] Downloading model from {model_url}...")
                 
                 # Check if it's a Hugging Face link
                 if 'huggingface.co' in model_url:
@@ -153,20 +157,42 @@ def load_model():
                             for chunk in resp.iter_content(chunk_size=32768):
                                 if chunk:
                                     f.write(chunk)
-                        print("Model downloaded successfully!")
+                        print("[INFO] Model downloaded successfully!")
                     else:
-                        print(f"Failed to download model, status: {resp.status_code}")
+                        print(f"[ERROR] Failed to download model, status: {resp.status_code}")
+                        
+                # Verify download
+                if os.path.exists(MODEL_PATH):
+                    size = os.path.getsize(MODEL_PATH)
+                    print(f"[INFO] Model file size: {size / (1024*1024):.2f} MB")
+                else:
+                    print("[ERROR] Model file not found after download!")
+                    
             except Exception as e:
-                print(f"Error downloading model from MODEL_URL: {e}")
+                print(f"[ERROR] Error downloading model from MODEL_URL: {e}")
+                import traceback
+                traceback.print_exc()
+        elif not model_url:
+            print("[WARNING] MODEL_URL environment variable is not set!")
 
         if not os.path.exists(MODEL_PATH):
+            print(f"[ERROR] Model not found at {MODEL_PATH}")
             return None
         return tf.keras.models.load_model(MODEL_PATH)
     except Exception as e:
-        print(f"Error loading model: {str(e)}")
+        print(f"[ERROR] Error loading model: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
-model = None
+# Try to load model at startup
+print("[INFO] Attempting to load model at startup...")
+model = load_model()
+if model:
+    print("[INFO] Model loaded successfully at startup!")
+else:
+    print("[WARNING] Model not loaded at startup - will try again on first request")
+    model = None
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
