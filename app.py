@@ -281,6 +281,8 @@ def api_predict():
     try:
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        # Ensure upload directory exists
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         file.save(filepath)
 
         # Optional leaf detection (reuse page logic)
@@ -436,6 +438,8 @@ def upload_file():
                 # Save the uploaded file
                 filename = secure_filename(file.filename)
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                # Ensure upload directory exists
+                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
                 file.save(filepath)
 
                 
