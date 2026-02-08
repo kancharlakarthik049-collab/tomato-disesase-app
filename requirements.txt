@@ -3,6 +3,7 @@ tensorflow
 numpy
 pillow
 werkzeug==2.0.2
-gunicorn==20.1.0
+gunicorn>=21.0.0
 requests
 flask-cors==3.0.10
+setuptools
