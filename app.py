@@ -16,6 +16,10 @@ MODEL_PATH = 'models/tomato_model.h5'
 # Optional leaf-detector model (binary: leaf / not-leaf)
 LEAF_DETECTOR_PATH = 'models/leaf_detector.h5'
 
+# Ensure upload folder exists at startup
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+
 # Configurable HSV thresholds and green proportion via env (defaults tuned)
 GREEN_H_MIN = int(os.getenv('GREEN_H_MIN', 25))
 GREEN_H_MAX = int(os.getenv('GREEN_H_MAX', 100))
