@@ -6,6 +6,8 @@ __pycache__/
 instance/
 *.sqlite3
 models/*.h5
+**/models/*.h5
+*.h5
 static/uploads/
 .vscode/
 dist/

@@ -1,11 +1,13 @@
 import os
 from flask import Flask, request, render_template, jsonify
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import numpy as np
 from PIL import Image
 import tensorflow as tf
 
 app = Flask(__name__)
+CORS(app)
 
 # Configure upload folder and allowed extensions
 UPLOAD_FOLDER = 'static/uploads'
@@ -186,6 +188,80 @@ def make_mask_overlay(image_path):
 @app.route('/health')
 def health_check():
     return jsonify({"status": "ok"})
+
+
+@app.route('/api/predict', methods=['POST'])
+def api_predict():
+    """JSON API endpoint for mobile apps: accepts multipart form with 'file' and returns prediction JSON."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Invalid file type. Allowed: png,jpg,jpeg'}), 400
+
+    try:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+
+        # Optional leaf detection (reuse page logic)
+        global leaf_detector
+        if leaf_detector is None:
+            leaf_detector = load_leaf_detector()
+
+        if leaf_detector is not None:
+            try:
+                ld_img = Image.open(filepath).convert('RGB').resize((128,128))
+                ld_arr = np.array(ld_img).astype('float32') / 255.0
+                ld_arr = np.expand_dims(ld_arr, axis=0)
+                pred = leaf_detector.predict(ld_arr)[0][0]
+                if float(pred) < 0.5:
+                    try:
+                        os.remove(filepath)
+                    except Exception:
+                        pass
+                    return jsonify({'error': 'Uploaded image does not appear to contain a tomato leaf.'}), 400
+            except Exception:
+                pass
+
+        if leaf_detector is None and not is_leaf_image(filepath):
+            try:
+                os.remove(filepath)
+            except Exception:
+                pass
+            return jsonify({'error': 'Uploaded image does not appear to contain a tomato leaf.'}), 400
+
+        processed_image = preprocess_image(filepath)
+
+        global model
+        if model is None:
+            model = load_model()
+            if model is None:
+                return jsonify({'error': 'Model not found on server.'}), 500
+
+        predictions = model.predict(processed_image)
+        predicted_class = class_labels[np.argmax(predictions[0])]
+        confidence = float(np.max(predictions[0]) * 100)
+
+        # create mask overlay if requested (best-effort)
+        maskname = None
+        try:
+            maskname = make_mask_overlay(filepath)
+        except Exception:
+            maskname = None
+
+        return jsonify({
+            'filename': filename,
+            'prediction': predicted_class,
+            'confidence': round(confidence, 2),
+            'mask': maskname
+        })
+    except Exception as e:
+        return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
 
 @app.route('/admin', methods=['GET', 'POST'])

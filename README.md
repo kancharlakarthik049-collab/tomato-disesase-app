@@ -67,6 +67,42 @@ tomato_disease_app/
    - Predicted condition
    - Confidence score
 
+Mobile app (Expo)
+------------------
+
+An Expo React Native app is included in `mobile_app/`.
+
+Quick start:
+
+```bash
+cd mobile_app
+npm install
+npm start
+```
+
+Edit `mobile_app/App.js` and set `BACKEND_URL` to point to your running Flask server, e.g. `http://192.168.1.10:5000`.
+
+On-device inference (optional)
+-----------------------------
+
+You can convert the provided Keras model to TensorFlow Lite for on-device inference using:
+
+```bash
+python convert_to_tflite.py
+```
+
+This writes `models/tomato_model.tflite` which can be integrated into native Android/iOS or used with TensorFlow Lite interpreters.
+
+Running tests
+-------------
+
+Run the simple health check test (make sure the server is running):
+
+```bash
+pip install pytest
+pytest tests/test_api_health.py
+```
+
 ## Supported Image Formats
 
 - JPG/JPEG
