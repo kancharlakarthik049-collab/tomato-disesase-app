@@ -91,18 +91,48 @@ def download_from_google_drive(file_id, destination):
                 f.write(chunk)
     print(f"Model downloaded successfully to {destination}")
 
+def download_from_huggingface(url, destination, token=None):
+    """Download model from Hugging Face Hub with optional authentication."""
+    import requests
+    headers = {}
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    
+    print(f"Downloading from Hugging Face: {url}")
+    response = requests.get(url, headers=headers, stream=True, timeout=300)
+    
+    if response.status_code == 200:
+        total_size = int(response.headers.get('content-length', 0))
+        downloaded = 0
+        with open(destination, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=32768):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        percent = (downloaded / total_size) * 100
+                        print(f"Download progress: {percent:.1f}%", end='\r')
+        print(f"\nModel downloaded successfully to {destination}")
+    else:
+        raise Exception(f"Failed to download: HTTP {response.status_code}")
+
 def load_model():
     try:
         # If model is missing but a download URL is provided, try to fetch it
         model_url = os.getenv('MODEL_URL')
+        hf_token = os.getenv('HF_TOKEN')  # Optional: for private Hugging Face repos
+        
         if not os.path.exists(MODEL_PATH) and model_url:
             try:
                 import requests
                 os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
                 print(f"Downloading model from {model_url}...")
                 
+                # Check if it's a Hugging Face link
+                if 'huggingface.co' in model_url:
+                    download_from_huggingface(model_url, MODEL_PATH, hf_token)
                 # Check if it's a Google Drive link
-                if 'drive.google.com' in model_url:
+                elif 'drive.google.com' in model_url:
                     # Extract file ID from various Google Drive URL formats
                     if '/d/' in model_url:
                         file_id = model_url.split('/d/')[1].split('/')[0]
