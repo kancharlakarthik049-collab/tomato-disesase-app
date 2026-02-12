@@ -1,0 +1,43 @@
+name: tomato_disease_detector
+description: TomatoCare - AI-powered plant disease detection app for tomato plants
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # TensorFlow Lite for model inference
+  tflite_flutter: ^0.12.1
+  
+  # Image picking from camera and gallery
+  image_picker: ^1.0.7
+  
+  # Image processing and manipulation
+  image: ^4.1.7
+  
+  # File path management
+  path_provider: ^2.1.2
+  
+  # Permission handling
+  permission_handler: ^11.3.0
+  
+  # Material Design icons (built-in)
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/tomato_disease_model.tflite
+    - assets/labels.txt
