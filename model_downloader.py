@@ -1,24 +1,17 @@
-"""
-Google Drive Model Download Module (Option B)
 
-This module provides a function to download the tomato disease model from Google Drive
+"""
+HuggingFace Model Download Module
+
+This module provides a function to download the tomato disease ONNX model from HuggingFace
 at application startup if the local model file is missing.
 
 Usage:
     from model_downloader import ensure_model_exists
     ensure_model_exists()
-    model = tf.keras.models.load_model('models/tomato_model.h5')
 
 Environment Variables:
-    MODEL_URL: Google Drive file ID or full shareable link (required)
-    MODEL_PATH: Path to save the model (default: models/tomato_model.h5)
-
-Setup:
-    1. Upload tomato_model.h5 to Google Drive
-    2. Right-click file → Share → Change to "Anyone with link can view"
-    3. Copy the file ID from the shareable link (the part between /d/ and /view)
-    4. Set environment variable: MODEL_URL=your_file_id
-    5. Install gdown: pip install gdown
+    MODEL_URL: HuggingFace ONNX file URL (default provided)
+    MODEL_PATH: Path to save the model (default: models/tomato_model.onnx)
 """
 
 import os
@@ -93,15 +86,15 @@ def download_from_google_drive(
 
 
 def ensure_model_exists(
-    model_path: str = "models/tomato_model.h5",
+    model_path: str = "models/tomato_model.onnx",
     model_url: Optional[str] = None
 ) -> bool:
     """
-    Ensure the model file exists, downloading from Google Drive if necessary.
+    Ensure the ONNX model file exists, downloading from HuggingFace if necessary.
 
     Args:
-        model_path: Path where the model should be located (default: models/tomato_model.h5)
-        model_url: Google Drive file ID or env var name (if None, reads MODEL_URL from env)
+        model_path: Path where the model should be located (default: models/tomato_model.onnx)
+        model_url: HuggingFace ONNX file URL (if None, uses default)
 
     Returns:
         True if model exists (or was successfully downloaded), False otherwise
@@ -115,55 +108,48 @@ def ensure_model_exists(
 
     # Get model URL from parameter or environment variable
     if model_url is None:
-        model_url = os.getenv("MODEL_URL", "").strip()
+        model_url = os.getenv("MODEL_URL", "https://huggingface.co/karthik049/tomato-disease-model/resolve/main/tomato_model.onnx").strip()
 
     if not model_url:
         logger.warning(
             f"Model not found at {model_path} and MODEL_URL not set. "
             "Unable to download model. "
-            "Set MODEL_URL environment variable with Google Drive file ID."
+            "Set MODEL_URL environment variable with HuggingFace ONNX URL."
         )
         print(f"⚠️ Warning: Model not found and MODEL_URL not configured")
         return False
 
-    # Download model from Google Drive
-    logger.info(f"Model not found. Attempting download from Google Drive...")
-    print(f"📥 Model not found. Downloading from Google Drive...")
+    # Download model from HuggingFace
+    logger.info(f"Model not found. Attempting download from HuggingFace...")
+    print(f"📥 Model not found. Downloading from HuggingFace...")
     
-    success = download_from_google_drive(
-        file_id=model_url,
-        output_path=model_path,
-        quiet=False
-    )
+    import requests
+    try:
+        response = requests.get(model_url, stream=True, timeout=300)
+        response.raise_for_status()
+        with open(model_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        size_mb = os.path.getsize(model_path) / (1024 * 1024)
+        logger.info(f"✅ Model downloaded successfully ({size_mb:.2f} MB)")
+        print(f"✅ Model downloaded successfully ({size_mb:.2f} MB)")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to download model from HuggingFace: {e}")
+        print(f"❌ Error downloading model: {e}")
+        return False
 
-    return success
 
 
-def get_model_url_from_drive_link(shareable_link: str) -> str:
-    """
-    Extract Google Drive file ID from a shareable link.
+    # No longer needed: Google Drive logic removed
+    return None
 
-    Args:
-        shareable_link: Full Google Drive shareable link
-        (e.g., https://drive.google.com/file/d/FILE_ID/view?usp=sharing)
-
-    Returns:
-        File ID suitable for use with gdown
-    """
-    if "/d/" in shareable_link:
-        file_id = shareable_link.split("/d/")[1].split("/")[0]
-        return file_id
-    return shareable_link
 
 
 if __name__ == "__main__":
-    # Example usage
-    print("🧪 Testing model downloader...")
-    
-    # Check if gdown is available
-    if gdown is None:
-        print("❌ gdown not installed. Install with: pip install gdown")
-        sys.exit(1)
+    print("🧪 Testing HuggingFace model downloader...")
+    ensure_model_exists()
     
     # Example: Download using environment variable
     model_path = "models/tomato_model.h5"

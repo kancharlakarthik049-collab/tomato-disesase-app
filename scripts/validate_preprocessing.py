@@ -4,6 +4,8 @@ Run this in your Python environment where you trained the model
 
 Usage:
     python scripts/validate_preprocessing.py
+
+Note: This script is now ONNX-focused. If you use ONNX models, adjust logic accordingly.
 """
 
 import numpy as np
@@ -19,7 +21,7 @@ def validate_preprocessing(model_path: str = None, output_path: str = 'validatio
     Validate preprocessing and export results for Flutter comparison
     
     Args:
-        model_path: Path to your .h5 or .tflite model file (optional)
+        model_path: Path to your ONNX model file (optional)
         output_path: Where to save validation results
     """
     
@@ -30,34 +32,8 @@ def validate_preprocessing(model_path: str = None, output_path: str = 'validatio
     # Default input size (from app.py)
     input_size = 224
     
-    # Try to load model to get actual input size
-    if model_path and Path(model_path).exists():
-        try:
-            import tensorflow as tf
-            print(f"\n📦 Loading model from {model_path}...")
-            
-            if model_path.endswith('.h5'):
-                from tensorflow.keras.models import load_model
-                model = load_model(model_path)
-                input_shape = model.input_shape
-                output_shape = model.output_shape
-                input_size = input_shape[1]
-            elif model_path.endswith('.tflite'):
-                interpreter = tf.lite.Interpreter(model_path=model_path)
-                interpreter.allocate_tensors()
-                input_details = interpreter.get_input_details()
-                output_details = interpreter.get_output_details()
-                input_shape = input_details[0]['shape']
-                output_shape = output_details[0]['shape']
-                input_size = input_shape[1]
-            
-            print(f"   Input shape: {input_shape}")
-            print(f"   Output shape: {output_shape}")
-            print(f"   Input size: {input_size}x{input_size}")
-            
-        except Exception as e:
-            print(f"⚠️ Could not load model: {e}")
-            print("   Using default input size: 224x224")
+    # ONNX model loading not implemented here. If needed, add ONNX shape extraction logic.
+    # Default input size (224) is used unless you add ONNX parsing.
     else:
         print(f"\n📋 Using default input size from app.py: {input_size}x{input_size}")
     
