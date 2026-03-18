@@ -14,10 +14,3 @@
         value: "0.60"
       - key: DEBUG_MODE
         value: "false"
-            value: 3.11.9
-          - key: MODEL_PATH
-            value: models/tomato_model.onnx
-          - key: CONF_THRESH
-            value: "0.60"
-          - key: DEBUG_MODE
-            value: "false"
