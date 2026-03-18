@@ -15,4 +15,5 @@
       - key: CONF_THRESH
         value: "0.6"
       - key: GOOGLE_DRIVE_MODEL_ID
+        value: "YOUR_GOOGLE_DRIVE_FILE_ID_HERE"
         sync: false
