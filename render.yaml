@@ -3,17 +3,17 @@
     name: tomato-disease-app
     env: python
     plan: free
-    buildCommand: chmod +x build.sh && ./build.sh
-    startCommand: gunicorn app:app --workers 1 --timeout 120 --bind 0.0.0.0:$PORT
-    services:
-      - type: web
-        name: tomato-disease-app
-        env: python
-        plan: free
-        buildCommand: chmod +x build.sh && bash build.sh
-        startCommand: gunicorn app:app --workers 1 --timeout 120 --bind 0.0.0.0:$PORT
-        envVars:
-          - key: PYTHON_VERSION
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: chmod +x start.sh && bash start.sh
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: MODEL_PATH
+        value: models/tomato_model.onnx
+      - key: CONF_THRESH
+        value: "0.60"
+      - key: DEBUG_MODE
+        value: "false"
             value: 3.11.9
           - key: MODEL_PATH
             value: models/tomato_model.onnx
