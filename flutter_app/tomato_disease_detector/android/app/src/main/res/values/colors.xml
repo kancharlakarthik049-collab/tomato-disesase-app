@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- TomatoCare brand colors -->
-    <color name="launch_background">#1A1A2E</color>
-    <color name="primary_green">#2ECC71</color>
-    <color name="accent_red">#E74C3C</color>
-    <color name="dark_surface">#16213E</color>
-</resources>

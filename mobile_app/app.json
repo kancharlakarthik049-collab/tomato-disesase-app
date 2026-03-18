@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Tomato Disease Identification",
+    "slug": "tomato-disease-app",
+    "version": "1.0.0",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow access to your photo library to select tomato leaf images",
+          "cameraPermission": "Allow access to your camera to capture tomato leaf images"
+        }
+      ]
+    ],
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    }
+  },
+  "name": "tomato-disease-app"
+}

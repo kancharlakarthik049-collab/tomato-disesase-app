@@ -1,0 +1,35 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.git
+venv/
+env/
+*.sqlite3
+*.log
+## allow including local model files in build context (uncommented on request)
+#*.h5
+# allow including local `models/` directory in build context (remove or override when publishing)
+# models/
+static/uploads/
+tests/
+node_modules/
+.vscode/venv
+.venv
+__pycache__/
+*.pyc
+.pytest_cache/
+.git
+venv/
+env/
+*.sqlite3
+*.log
+# Exclude large or local-only files/directories from image context
+static/uploads/
+.venv
+.vscode
+dist
+build
+*.egg-info
+
+# NOTE: To include your model inside the built image, remove or comment out the `models/` line below.
+# models/

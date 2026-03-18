@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeafSense — Tomato Disease Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #f4f6f2;
+  --surface:   #ffffff;
+  --surface2:  #f0f3ee;
+  --border:    #dde3d8;
+  --border-md: #c8d4c2;
+
+  --green-900: #1a3a16;
+  --green-700: #2d6124;
+  --green-500: #4a8c3f;
+  --green-300: #8ec484;
+  --green-100: #e4f0e1;
+  --green-50:  #f1f8ef;
+
+  --red-700:   #a82c1e;
+  --red-500:   #c0392b;
+  --red-100:   #fce8e6;
+
+  --amber-600: #b5620e;
+  --amber-100: #fef0d9;
+
+  --text-900:  #1c2318;
+  --text-600:  #455240;
+  --text-400:  #7a8f74;
+  --text-200:  #b4c4ae;
+
+  --shadow-sm: 0 1px 3px rgba(30,50,25,0.08);
+  --shadow-md: 0 4px 16px rgba(30,50,25,0.10);
+  --shadow-lg: 0 12px 40px rgba(30,50,25,0.13);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+
+body {
+  background: var(--bg);
+  color: var(--text-900);
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 40px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: var(--shadow-sm);
+}
+
+.brand { display: flex; align-items: center; gap: 12px; }
+
+.brand-icon {
+  width: 34px; height: 34px;
+  background: var(--green-700);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; flex-shrink: 0;
+}
+
+.brand-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 18px; font-weight: 700;
+  color: var(--green-900); letter-spacing: -0.3px;
+}
+
+.brand-divider { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+
+.brand-sub { font-size: 11.5px; font-weight: 500; color: var(--text-400); letter-spacing: 0.3px; }
+
+.topbar-right { display: flex; align-items: center; gap: 20px; }
+.version-tag { font-size: 11px; font-weight: 500; color: var(--text-400); letter-spacing: 0.5px; }
+
+.status-indicator {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; font-weight: 500; color: var(--green-700);
+  background: var(--green-50); border: 1px solid var(--green-100);
+  padding: 5px 13px; border-radius: 6px;
+}
+
+.status-dot {
+  width: 6px; height: 6px;
+  background: var(--green-500); border-radius: 50%;
+  animation: pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── PAGE ── */
+.page { max-width: 1120px; margin: 0 auto; padding: 36px 40px 72px; }
+
+.page-header {
+  margin-bottom: 32px; padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px;
+  opacity: 0; animation: fadeUp 0.6s 0.05s forwards;
+}
+
+.page-header-left h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px; font-weight: 700;
+  color: var(--text-900); letter-spacing: -0.5px;
+  line-height: 1.2; margin-bottom: 5px;
+}
+
+.page-header-left p {
+  font-size: 13.5px; color: var(--text-400);
+  font-weight: 400; max-width: 480px; line-height: 1.6;
+}
+
+.breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--text-400);
+  font-weight: 500; letter-spacing: 0.3px; white-space: nowrap;
+}
+
+.breadcrumb span { color: var(--text-200); }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── WORKSPACE ── */
+.workspace {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 22px; align-items: start;
+}
+
+@media (max-width: 860px) { .workspace { grid-template-columns: 1fr; } }
+
+/* ── PANEL ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  opacity: 0; animation: fadeUp 0.6s forwards;
+  transition: box-shadow 0.25s;
+}
+
+.panel:hover { box-shadow: var(--shadow-md); }
+.panel.d1 { animation-delay: 0.12s; }
+.panel.d2 { animation-delay: 0.22s; }
+.panel.d3 { animation-delay: 0.32s; }
+
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.panel-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 600; color: var(--text-600);
+  text-transform: uppercase; letter-spacing: 1.2px;
+}
+
+.panel-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green-500); }
+.panel-meta { font-size: 11px; font-weight: 500; color: var(--text-200); }
+
+.panel-body { padding: 20px; }
+
+/* ── DROP ZONE ── */
+.drop-zone {
+  border: 1.5px dashed var(--border-md);
+  border-radius: 10px; padding: 36px 20px; text-align: center;
+  cursor: pointer; position: relative;
+  background: var(--green-50); transition: all 0.25s;
+}
+
+.drop-zone:hover, .drop-zone.active {
+  border-color: var(--green-500); background: var(--green-100);
+}
+
+.drop-zone input[type="file"] {
+  position: absolute; inset: 0; opacity: 0;
+  cursor: pointer; width: 100%; height: 100%;
+}
+
+.drop-icon {
+  width: 48px; height: 48px; background: var(--surface);
+  border: 1.5px solid var(--border); border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; margin: 0 auto 14px; box-shadow: var(--shadow-sm);
+  transition: transform 0.3s;
+}
+
+.drop-zone:hover .drop-icon { transform: translateY(-3px); }
+
+.drop-zone h3 { font-size: 14px; font-weight: 600; color: var(--text-900); margin-bottom: 5px; }
+.drop-zone p { font-size: 12.5px; color: var(--text-400); margin-bottom: 14px; line-height: 1.5; }
+
+.file-types { display: inline-flex; gap: 6px; }
+
+.file-chip {
+  font-size: 10.5px; font-weight: 600; color: var(--text-600);
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 3px 9px; border-radius: 4px; letter-spacing: 0.5px;
+}
+
+.or-row {
+  display: flex; align-items: center; gap: 12px;
+  margin: 16px 0; color: var(--text-200);
+  font-size: 11.5px; font-weight: 500; letter-spacing: 0.5px;
+}
+
+.or-row::before, .or-row::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+/* ── BUTTONS ── */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: 'Inter', sans-serif; font-weight: 600; letter-spacing: 0.2px;
+  border-radius: 8px; border: none; cursor: pointer; transition: all 0.2s;
+}
+
+.btn-outline {
+  width: 100%; padding: 11px 16px;
+  background: var(--surface); border: 1.5px solid var(--border);
+  color: var(--text-600); font-size: 13px;
+}
+
+.btn-outline:hover {
+  border-color: var(--green-300); color: var(--green-700); background: var(--green-50);
+}
+
+.btn-run {
+  width: 100%; padding: 13px 16px; margin-top: 12px;
+  background: var(--green-700); color: #fff; font-size: 14px;
+  box-shadow: 0 2px 8px rgba(45,97,36,0.25);
+}
+
+.btn-run:hover {
+  background: var(--green-900);
+  box-shadow: 0 4px 18px rgba(45,97,36,0.35);
+  transform: translateY(-1px);
+}
+
+.btn-run:active { transform: translateY(0); }
+.btn-icon { font-size: 15px; line-height: 1; }
+
+/* ── PREVIEW ── */
+.preview-frame {
+  aspect-ratio: 4/3; background: var(--surface2);
+  border-radius: 8px; border: 1px solid var(--border);
+  overflow: hidden; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.preview-frame img { width: 100%; height: 100%; object-fit: cover; display: none; }
+
+#cameraVideo { width: 100%; height: 100%; object-fit: cover; display: none; }
+
+.preview-ph { text-align: center; color: var(--text-200); padding: 20px; }
+.preview-ph .ph-icon { font-size: 40px; opacity: 0.4; margin-bottom: 10px; }
+.preview-ph p { font-size: 12.5px; font-style: italic; color: var(--text-400); }
+
+.scan-overlay { position: absolute; inset: 0; pointer-events: none; display: none; }
+.scan-overlay.on { display: block; }
+
+.scan-line {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(74,140,63,0.7) 30%, rgba(142,196,132,1) 50%, rgba(74,140,63,0.7) 70%, transparent);
+  animation: scanMove 1.8s ease-in-out infinite;
+  box-shadow: 0 0 14px rgba(74,140,63,0.5);
+}
+
+@keyframes scanMove {
+  0%   { top: 2%; opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { top: 98%; opacity: 0; }
+}
+
+.sc { position: absolute; width: 18px; height: 18px; border-color: var(--green-500); border-style: solid; }
+.sc.tl { top:8px; left:8px;    border-width: 2px 0 0 2px; }
+.sc.tr { top:8px; right:8px;   border-width: 2px 2px 0 0; }
+.sc.bl { bottom:8px; left:8px; border-width: 0 0 2px 2px; }
+.sc.br { bottom:8px; right:8px;border-width: 0 2px 2px 0; }
+
+.info-strip {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 12px; padding: 10px 14px;
+  background: var(--surface2); border-radius: 8px; border: 1px solid var(--border);
+}
+
+.info-strip-label { font-size: 11.5px; color: var(--text-400); font-weight: 500; }
+.info-strip-val   { font-size: 12px; color: var(--text-600); font-weight: 600; }
+
+/* ── RESULTS ── */
+.loading-state {
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px; padding: 64px 20px; text-align: center;
+}
+
+.loading-state.on { display: flex; }
+
+.ring {
+  width: 42px; height: 42px;
+  border: 2.5px solid var(--green-100);
+  border-top-color: var(--green-500);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-state p { font-size: 13.5px; color: var(--text-400); font-weight: 500; }
+.loading-state span { font-size: 11.5px; color: var(--text-200); font-style: italic; }
+
+.empty-state {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 64px 24px; text-align: center;
+}
+
+.empty-icon-box {
+  width: 64px; height: 64px; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; margin-bottom: 18px;
+}
+
+.empty-state h4 { font-size: 15px; font-weight: 600; color: var(--text-600); margin-bottom: 7px; }
+.empty-state p  { font-size: 13px; color: var(--text-400); line-height: 1.6; max-width: 280px; }
+
+.result-view { display: none; }
+.result-view.on { display: block; animation: fadeUp 0.45s forwards; }
+
+/* Disease header */
+.disease-header {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 16px;
+  padding: 20px 20px 16px; border-bottom: 1px solid var(--border);
+}
+
+.disease-cat {
+  font-size: 11px; font-weight: 600; color: var(--text-400);
+  text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 6px;
+}
+
+.disease-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px; font-weight: 700;
+  letter-spacing: -0.3px; line-height: 1.2; margin-bottom: 8px;
+}
+
+.disease-name.healthy  { color: var(--green-700); }
+.disease-name.diseased { color: var(--red-500); }
+.disease-name.warning  { color: var(--amber-600); }
+
+.disease-id {
+  display: inline-block; font-size: 10.5px; font-weight: 600;
+  color: var(--text-400); background: var(--surface2);
+  border: 1px solid var(--border); padding: 2px 9px;
+  border-radius: 4px; letter-spacing: 0.8px;
+}
+
+.sev-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 600; padding: 6px 14px;
+  border-radius: 6px; text-transform: uppercase;
+  letter-spacing: 0.8px; flex-shrink: 0;
+}
+
+.sev-badge.high   { background: var(--red-100);   color: var(--red-700);   border: 1px solid rgba(168,44,30,0.15); }
+.sev-badge.medium { background: var(--amber-100); color: var(--amber-600); border: 1px solid rgba(181,98,14,0.15); }
+.sev-badge.low    { background: var(--green-100); color: var(--green-700); border: 1px solid rgba(74,140,63,0.2);  }
+
+/* Two-col body */
+.result-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+@media (max-width: 660px) { .result-cols { grid-template-columns: 1fr; } }
+
+.r-col { padding: 20px; }
+.r-col + .r-col { border-left: 1px solid var(--border); }
+@media (max-width: 660px) { .r-col + .r-col { border-left: none; border-top: 1px solid var(--border); } }
+
+.col-title {
+  font-size: 11px; font-weight: 600; color: var(--text-400);
+  text-transform: uppercase; letter-spacing: 1.2px;
+  margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+
+.desc-text {
+  font-size: 13.5px; color: var(--text-600);
+  line-height: 1.75; margin-bottom: 18px; font-weight: 400;
+}
+
+.treat-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+
+.treat-list li {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 13px; color: var(--text-600); line-height: 1.55;
+}
+
+.t-bullet {
+  width: 20px; height: 20px; background: var(--green-100);
+  border-radius: 4px; display: flex; align-items: center;
+  justify-content: center; font-size: 11px; flex-shrink: 0; margin-top: 1px;
+  color: var(--green-700); font-weight: 700;
+}
+
+/* Confidence */
+.conf-bars { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+
+.conf-row {
+  display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 6px;
+}
+
+.conf-lbl { font-size: 12.5px; font-weight: 500; color: var(--text-600); }
+.conf-pct { font-size: 12.5px; font-weight: 600; color: var(--text-900); font-variant-numeric: tabular-nums; }
+
+.conf-track {
+  height: 7px; background: var(--surface2); border-radius: 4px;
+  overflow: hidden; border: 1px solid var(--border);
+}
+
+.conf-fill {
+  height: 100%; border-radius: 4px; width: 0;
+  transition: width 1.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.conf-fill.r1 { background: linear-gradient(90deg, var(--green-700), var(--green-500)); }
+.conf-fill.r2 { background: linear-gradient(90deg, var(--amber-600), #e4922a); }
+.conf-fill.r3 { background: linear-gradient(90deg, var(--red-700), var(--red-500)); }
+
+/* Stats strip */
+.stats-strip { display: grid; grid-template-columns: repeat(3,1fr); border-top: 1px solid var(--border); }
+
+.stat-cell { text-align: center; padding: 16px 10px; }
+.stat-cell + .stat-cell { border-left: 1px solid var(--border); }
+
+.stat-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px; font-weight: 700; line-height: 1; margin-bottom: 5px;
+}
+
+.stat-val.g { color: var(--green-700); }
+.stat-val.r { color: var(--red-500); }
+.stat-val.a { color: var(--amber-600); }
+
+.stat-key {
+  font-size: 10px; font-weight: 600; color: var(--text-400);
+  text-transform: uppercase; letter-spacing: 1.2px;
+}
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 28px; right: 28px;
+  background: var(--text-900); color: #fff;
+  font-size: 13px; font-weight: 500;
+  padding: 11px 20px; border-radius: 8px;
+  box-shadow: var(--shadow-lg); z-index: 200;
+  opacity: 0; transform: translateY(16px);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: 320px; line-height: 1.4;
+}
+
+.toast.show { opacity: 1; transform: translateY(0); }
+
+/* ── FOOTER ── */
+.pg-footer {
+  margin-top: 48px; padding-top: 20px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+
+.pg-footer-l { font-size: 12px; color: var(--text-400); font-weight: 500; }
+.pg-footer-r { font-size: 12px; color: var(--text-200); }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<nav class="topbar">
+  <div class="brand">
+    <div class="brand-icon">🌿</div>
+    <span class="brand-name">LeafSense</span>
+    <div class="brand-divider"></div>
+    <span class="brand-sub">Tomato Disease Detection</span>
+  </div>
+  <div class="topbar-right">
+    <span class="version-tag">v2.1.0</span>
+    <div class="status-indicator">
+      <div class="status-dot"></div>
+      Model Online
+    </div>
+  </div>
+</nav>
+
+<main class="page">
+
+  <!-- Page header -->
+  <div class="page-header">
+    <div class="page-header-left">
+      <h2>Disease Diagnosis</h2>
+      <p>Upload or capture a tomato leaf image to receive an AI-powered disease assessment with confidence scoring and treatment guidance.</p>
+    </div>
+    <div class="breadcrumb">Dashboard <span>/</span> Analysis <span>/</span> New Scan</div>
+  </div>
+
+  <!-- Workspace -->
+  <div class="workspace">
+
+    <!-- LEFT: Input + Preview -->
+    <div style="display:flex;flex-direction:column;gap:22px;">
+
+      <!-- Upload -->
+      <div class="panel d1">
+        <div class="panel-head">
+          <div class="panel-label"><div class="panel-dot"></div>Image Input</div>
+          <span class="panel-meta">Step 1 of 2</span>
+        </div>
+        <div class="panel-body">
+          <div class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" accept="image/*">
+            <div class="drop-icon">📁</div>
+            <h3>Drop your image here</h3>
+            <p>Drag & drop a tomato leaf photo,<br>or click to browse your files</p>
+            <div class="file-types">
+              <span class="file-chip">JPG</span>
+              <span class="file-chip">PNG</span>
+              <span class="file-chip">WEBP</span>
+            </div>
+          </div>
+
+          <div class="or-row">or</div>
+
+          <button class="btn btn-outline" id="cameraBtn">
+            <span class="btn-icon">📷</span> Capture with Camera
+          </button>
+
+          <button class="btn btn-run" id="analyzeBtn">
+            <span class="btn-icon">🔬</span> Run Disease Analysis
+          </button>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="panel d2">
+        <div class="panel-head">
+          <div class="panel-label"><div class="panel-dot"></div>Image Preview</div>
+          <span class="panel-meta" id="imgMeta">No image loaded</span>
+        </div>
+        <div class="panel-body">
+          <div class="preview-frame" id="previewFrame">
+            <div class="preview-ph" id="previewPH">
+              <div class="ph-icon">🌱</div>
+              <p>Your leaf image will appear here</p>
+            </div>
+            <img id="previewImg" alt="Leaf preview">
+            <video id="cameraVideo" autoplay playsinline></video>
+            <div class="scan-overlay" id="scanOverlay">
+              <div class="scan-line"></div>
+              <div class="sc tl"></div><div class="sc tr"></div>
+              <div class="sc bl"></div><div class="sc br"></div>
+            </div>
+          </div>
+          <div class="info-strip">
+            <span class="info-strip-label">Status</span>
+            <span class="info-strip-val" id="infoStatus">Awaiting image upload</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Results -->
+    <div class="panel d3" style="position:relative;">
+      <div class="panel-head">
+        <div class="panel-label"><div class="panel-dot"></div>Analysis Report</div>
+        <span class="panel-meta" id="resultTs">—</span>
+      </div>
+
+      <!-- Loading -->
+      <div class="loading-state" id="loadingState">
+        <div class="ring"></div>
+        <p>Analyzing leaf tissue…</p>
+        <span>Running inference on uploaded image</span>
+      </div>
+
+      <!-- Empty -->
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon-box">📋</div>
+        <h4>No Analysis Yet</h4>
+        <p>Upload a leaf image and click "Run Disease Analysis" to generate a diagnostic report.</p>
+      </div>
+
+      <!-- Result -->
+      <div class="result-view" id="resultView">
+
+        <div class="disease-header">
+          <div>
+            <div class="disease-cat">Detected Condition</div>
+            <div class="disease-name" id="diseaseName">—</div>
+            <span class="disease-id" id="diseaseId">—</span>
+          </div>
+          <div class="sev-badge" id="sevBadge">—</div>
+        </div>
+
+        <div class="result-cols">
+          <div class="r-col">
+            <div class="col-title">Clinical Summary</div>
+            <p class="desc-text" id="descText">—</p>
+            <div class="col-title">Recommended Actions</div>
+            <ul class="treat-list" id="treatList"></ul>
+          </div>
+          <div class="r-col">
+            <div class="col-title">Confidence Scores</div>
+            <div class="conf-bars" id="confBars"></div>
+            <div class="col-title">Summary Statistics</div>
+          </div>
+        </div>
+
+        <div class="stats-strip">
+          <div class="stat-cell">
+            <div class="stat-val g" id="stConf">—</div>
+            <div class="stat-key">Confidence</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-val r" id="stSev">—</div>
+            <div class="stat-key">Severity</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-val a" id="stStatus">—</div>
+            <div class="stat-key">Plant Status</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="pg-footer">
+    <span class="pg-footer-l">LeafSense — Precision Agriculture Platform</span>
+    <span class="pg-footer-r">Model accuracy may vary. Consult an agronomist for critical decisions.</span>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DB = {
+  "Bacterial Spot": {
+    id:"TOM-BS-001", cls:"diseased", sev:"high",
+    desc:"Caused by Xanthomonas species. Presents as small water-soaked lesions on foliage that darken to brown with surrounding yellow halos. Spreads rapidly under warm, wet conditions and can cause significant defoliation and yield loss.",
+    treatments:[
+      "Apply copper-based bactericides on a 7–10 day schedule",
+      "Remove and destroy all infected plant material promptly",
+      "Transition to drip irrigation to keep foliage dry",
+      "Implement a minimum 2-season crop rotation plan"
+    ],
+    scores:[
+      {label:"Bacterial Spot", pct:91},
+      {label:"Early Blight",   pct:6 },
+      {label:"Healthy Tissue", pct:3 }
+    ]
+  },
+  "Early Blight": {
+    id:"TOM-EB-002", cls:"diseased", sev:"medium",
+    desc:"Caused by Alternaria solani. Characterized by dark-brown circular lesions with distinctive concentric ring patterns (target-board appearance). Lesions first appear on older, lower leaves before progressing upward.",
+    treatments:[
+      "Apply chlorothalonil or mancozeb-based fungicides",
+      "Prune and remove affected lower foliage regularly",
+      "Apply organic mulch to minimize soil splash",
+      "Water at plant base during morning hours only"
+    ],
+    scores:[
+      {label:"Early Blight",       pct:87},
+      {label:"Septoria Leaf Spot", pct:10},
+      {label:"Healthy Tissue",     pct:3 }
+    ]
+  },
+  "Healthy": {
+    id:"TOM-HL-000", cls:"healthy", sev:"low",
+    desc:"No pathological indicators detected. The submitted leaf sample shows normal tissue coloration and structure with no visible signs of bacterial, fungal, or viral infection at this time.",
+    treatments:[
+      "Maintain current irrigation and fertilization schedule",
+      "Perform weekly visual inspections for early signs",
+      "Ensure adequate plant spacing for good airflow",
+      "Apply preventive neem oil spray during humid seasons"
+    ],
+    scores:[
+      {label:"Healthy Tissue", pct:96},
+      {label:"Early Blight",   pct:3 },
+      {label:"Bacterial Spot", pct:1 }
+    ]
+  },
+  "Late Blight": {
+    id:"TOM-LB-003", cls:"diseased", sev:"high",
+    desc:"Caused by Phytophthora infestans. A highly destructive oomycete pathogen producing pale-green to brown water-soaked lesions that rapidly expand. White sporangiophore growth is visible on leaf undersides in humid conditions.",
+    treatments:[
+      "Apply systemic fungicides (metalaxyl, cymoxanil) immediately",
+      "Remove all infected tissue — do not compost",
+      "Avoid field operations when plants are wet",
+      "Source certified disease-resistant transplants for next season"
+    ],
+    scores:[
+      {label:"Late Blight",    pct:94},
+      {label:"Bacterial Spot", pct:4 },
+      {label:"Healthy Tissue", pct:2 }
+    ]
+  },
+  "Leaf Mold": {
+    id:"TOM-LM-004", cls:"diseased", sev:"medium",
+    desc:"Caused by Passalora fulva (formerly Cladosporium fulvum). Produces pale-yellow blotches on upper leaf surfaces with olive-green fuzzy mold on the undersides. Typical 'feathery' appearance with dense sporulation.",
+    treatments:[
+      "Ensure excellent ventilation and air circulation",
+      "Apply sulfur-based fungicides preventively",
+      "Avoid overhead watering; use drip irrigation",
+      "Space plants widely to reduce humidity around foliage"
+    ],
+    scores:[
+      {label:"Leaf Mold",      pct:88},
+      {label:"Early Blight",   pct:8 },
+      {label:"Healthy Tissue", pct:4 }
+    ]
+  },
+  "Septoria Leaf Spot": {
+    id:"TOM-SLS-005", cls:"diseased", sev:"medium",
+    desc:"Caused by Septoria lycopersici. Small circular lesions with dark borders and grayish centers, typically with a dark spot in the center. Spreads from lower leaves upward in cool, wet weather.",
+    treatments:[
+      "Remove infected leaves promptly and dispose of properly",
+      "Apply copper fungicides on 7-10 day intervals",
+      "Avoid wetting foliage during irrigation",
+      "Rotate crops annually to break disease cycle"
+    ],
+    scores:[
+      {label:"Septoria Leaf Spot", pct:82},
+      {label:"Early Blight",       pct:12},
+      {label:"Healthy Tissue",     pct:6 }
+    ]
+  },
+  "Spider Mites": {
+    id:"TOM-SM-006", cls:"diseased", sev:"medium",
+    desc:"Caused by spider mite feeding (Tetranychus species). Fine webbing visible on leaves; yellow stippled appearance on foliage. Heavy infestations can cause severe defoliation and stunted growth.",
+    treatments:[
+      "Apply miticide sprays on a 7-10 day schedule",
+      "Use neem oil or sulfur for organic control",
+      "Increase humidity to discourage mite populations",
+      "Remove heavily infested foliage to reduce pest load"
+    ],
+    scores:[
+      {label:"Spider Mites", pct:85},
+      {label:"Early Blight",  pct:10},
+      {label:"Healthy Tissue", pct:5 }
+    ]
+  },
+  "Target Spot": {
+    id:"TOM-TS-007", cls:"diseased", sev:"medium",
+    desc:"Caused by Corynespora cassiicola. Circular lesions with concentric rings resembling target boards. Initially brown with yellow halos, can coalesce to cause large areas of necrosis.",
+    treatments:[
+      "Apply mancozeb or chlorothalonil fungicides",
+      "Remove and destroy all infected plant material",
+      "Maintain good sanitation in greenhouse or field",
+      "Implement strict crop rotation practices"
+    ],
+    scores:[
+      {label:"Target Spot",   pct:87},
+      {label:"Early Blight",  pct:9 },
+      {label:"Healthy Tissue", pct:4 }
+    ]
+  },
+  "Yellow Leaf Curl Virus": {
+    id:"TOM-YLCV-008", cls:"diseased", sev:"high",
+    desc:"Caused by whitefly-transmitted Begomovirus. Leaves show severe curling, yellowing, and mottling. Significant stunting of plant growth and dramatic reduction in fruit yield.",
+    treatments:[
+      "Control whitefly vectors using insecticidal soaps",
+      "Remove and destroy infected plants immediately",
+      "Use reflective mulches to deter whitefly vectors",
+      "Plant resistant varieties in endemic regions"
+    ],
+    scores:[
+      {label:"Yellow Leaf Curl Virus", pct:92},
+      {label:"Bacterial Spot",         pct:5 },
+      {label:"Healthy Tissue",         pct:3 }
+    ]
+  },
+  "Mosaic Virus": {
+    id:"TOM-MV-009", cls:"diseased", sev:"high",
+    desc:"Caused by Tobamovirus or Potyvirus species. Leaves display mosaic patterns with alternating light and dark green areas, leaf distortion, and stunting. Can cause severe yield reduction.",
+    treatments:[
+      "Remove and destroy all infected plants",
+      "Disinfect tools and surfaces with bleach solution",
+      "Control aphid vectors with appropriate insecticides",
+      "Maintain disease-free transplant sources"
+    ],
+    scores:[
+      {label:"Mosaic Virus",   pct:90},
+      {label:"Leaf Mold",      pct:6 },
+      {label:"Healthy Tissue", pct:4 }
+    ]
+  }
+};
+
+let currentImage = null, cameraStream = null, cameraOn = false;
+
+const fileInput    = document.getElementById('fileInput');
+const dropZone     = document.getElementById('dropZone');
+const previewImg   = document.getElementById('previewImg');
+const previewPH    = document.getElementById('previewPH');
+const imgMeta      = document.getElementById('imgMeta');
+const infoStatus   = document.getElementById('infoStatus');
+const cameraBtn    = document.getElementById('cameraBtn');
+const cameraVideo  = document.getElementById('cameraVideo');
+const scanOverlay  = document.getElementById('scanOverlay');
+const analyzeBtn   = document.getElementById('analyzeBtn');
+const loadingState = document.getElementById('loadingState');
+const emptyState   = document.getElementById('emptyState');
+const resultView   = document.getElementById('resultView');
+
+// Upload
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('active'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('active');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+function loadFile(file) {
+  if (!file.type.startsWith('image/')) { showToast('Please upload a valid image file.'); return; }
+  stopCamera();
+  const r = new FileReader();
+  r.onload = e => {
+    currentImage = e.target.result;
+    previewImg.src = currentImage;
+    previewImg.style.display = 'block';
+    previewPH.style.display = 'none';
+    imgMeta.textContent = file.name.slice(0,22) + ' · ' + (file.size/1024).toFixed(0) + ' KB';
+    infoStatus.textContent = 'Image loaded — ready for analysis';
+    showToast('Image loaded successfully.');
+  };
+  r.readAsDataURL(file);
+}
+
+// Camera
+cameraBtn.addEventListener('click', async () => {
+  if (!cameraOn) {
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } });
+      cameraVideo.srcObject = cameraStream;
+      cameraVideo.style.display = 'block';
+      previewImg.style.display = 'none';
+      previewPH.style.display = 'none';
+      cameraOn = true;
+      cameraBtn.innerHTML = '<span class="btn-icon">📸</span> Capture Photo';
+      infoStatus.textContent = 'Camera active — click to capture';
+      showToast('Camera ready. Click again to capture.');
+    } catch { showToast('Camera access denied or unavailable.'); }
+    return;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = cameraVideo.videoWidth;
+  canvas.height = cameraVideo.videoHeight;
+  canvas.getContext('2d').drawImage(cameraVideo, 0, 0);
+  currentImage = canvas.toDataURL('image/jpeg');
+  previewImg.src = currentImage;
+  stopCamera();
+  previewImg.style.display = 'block';
+  previewPH.style.display = 'none';
+  imgMeta.textContent = 'Camera capture · ' + (currentImage.length*0.75/1024).toFixed(0) + ' KB';
+  infoStatus.textContent = 'Photo captured — ready for analysis';
+  showToast('Photo captured successfully.');
+});
+
+function stopCamera() {
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  cameraOn = false;
+  cameraVideo.style.display = 'none';
+  cameraBtn.innerHTML = '<span class="btn-icon">📷</span> Capture with Camera';
+}
+
+// Analyze
+analyzeBtn.addEventListener('click', async () => {
+  if (!currentImage) { showToast('Please upload or capture an image first.'); return; }
+  
+  scanOverlay.classList.add('on');
+  emptyState.style.display = 'none';
+  resultView.classList.remove('on');
+  loadingState.classList.add('on');
+  
+  try {
+    // Convert data URL to blob
+    let blob;
+    if (currentImage.startsWith('data:')) {
+      // Handle data URL
+      const arr = currentImage.split(',');
+      const mime = arr[0].match(/:(.*?);/)[1];
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while(n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      blob = new Blob([u8arr], { type: mime });
+    } else {
+      // Handle blob URL
+      const response = await fetch(currentImage);
+      blob = await response.blob();
+    }
+    
+    // Create form data
+    const formData = new FormData();
+    formData.append('file', blob, 'leaf.jpg');
+    
+    // Send to API
+    const res = await fetch('/api/predict', { 
+      method: 'POST', 
+      body: formData 
+    });
+    
+    if (!res.ok) {
+      try {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Upload failed');
+      } catch (e) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+    }
+    
+    const pred = await res.json();
+    
+    await new Promise(r => setTimeout(r, 1200));
+    scanOverlay.classList.remove('on');
+    loadingState.classList.remove('on');
+    
+    const predictionName = convertPredictionName(pred.prediction);
+    const data = DB[predictionName] || DB['Healthy'];
+    renderResult(predictionName, data);
+  } catch (err) {
+    scanOverlay.classList.remove('on');
+    loadingState.classList.remove('on');
+    console.error('Upload error:', err);
+    showToast('Error: ' + err.message);
+  }
+});
+
+function convertPredictionName(prediction) {
+  const normalized = prediction.replace(/_/g, ' ');
+  for (const key in DB) {
+    if (key.toLowerCase() === normalized.toLowerCase()) {
+      return key;
+    }
+  }
+  return normalized;
+}
+
+function renderResult(name, d) {
+  const nameEl = document.getElementById('diseaseName');
+  nameEl.textContent = name;
+  nameEl.className = 'disease-name ' + d.cls;
+
+  document.getElementById('diseaseId').textContent = d.id;
+
+  const badge = document.getElementById('sevBadge');
+  badge.className = 'sev-badge ' + (d.sev === 'high' ? 'high' : d.sev === 'medium' ? 'medium' : 'low');
+  badge.textContent = d.sev.charAt(0).toUpperCase() + d.sev.slice(1) + ' Severity';
+
+  document.getElementById('descText').textContent = d.desc;
+
+  document.getElementById('treatList').innerHTML = d.treatments.map(t =>
+    `<li><span class="t-bullet">→</span>${t}</li>`
+  ).join('');
+
+  const ranks = ['r1','r2','r3'];
+  document.getElementById('confBars').innerHTML = d.scores.map((s,i) => `
+    <div>
+      <div class="conf-row">
+        <span class="conf-lbl">${s.label}</span>
+        <span class="conf-pct">${s.pct}%</span>
+      </div>
+      <div class="conf-track">
+        <div class="conf-fill ${ranks[i]}" data-w="${s.pct}"></div>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('stConf').textContent   = d.scores[0].pct + '%';
+  document.getElementById('stSev').textContent    = d.sev.charAt(0).toUpperCase() + d.sev.slice(1);
+  document.getElementById('stStatus').textContent = d.cls === 'healthy' ? 'Clean' : 'At Risk';
+  document.getElementById('resultTs').textContent = 'Generated ' + new Date().toLocaleTimeString();
+
+  resultView.classList.add('on');
+
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.conf-fill').forEach(el => {
+      setTimeout(() => el.style.width = el.dataset.w + '%', 100);
+    });
+  });
+
+  showToast('Analysis complete: ' + name);
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>

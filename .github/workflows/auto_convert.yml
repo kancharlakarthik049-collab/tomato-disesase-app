@@ -1,0 +1,98 @@
+name: Convert H5 Model to ONNX
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'models/tomato_model.h5'
+      - '.github/workflows/auto_convert.yml'
+  workflow_dispatch:
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install tensorflow tf2onnx onnxruntime
+      
+      - name: Convert H5 to ONNX
+        run: |
+          python << 'EOF'
+import tensorflow as tf
+import tf2onnx
+import onnx
+import os
+import sys
+
+print("🔄 Loading H5 model...")
+model = tf.keras.models.load_model('models/tomato_model.h5', compile=False)
+print(f"✓ Model input shape: {model.input_shape}")
+
+print("🔄 Converting to ONNX...")
+input_sig = [tf.TensorSpec(model.inputs[0].shape, tf.float32, name='input')]
+onnx_model, _ = tf2onnx.convert.from_keras(
+    model, 
+    input_signature=input_sig, 
+    opset=13
+)
+
+onnx.save(onnx_model, 'models/tomato_model.onnx')
+size_mb = os.path.getsize('models/tomato_model.onnx') / (1024 * 1024)
+print(f"✅ Conversion complete! Size: {size_mb:.1f} MB")
+EOF
+
+      - name: Verify ONNX model
+        run: |
+          python << 'EOF'
+import onnxruntime as ort
+import numpy as np
+import os
+
+print("🔍 Verifying ONNX model...")
+sess = ort.InferenceSession('models/tomato_model.onnx')
+input_name = sess.get_inputs()[0].name
+
+dummy = np.random.randn(1, 224, 224, 3).astype(np.float32)
+outputs = sess.run(None, {input_name: dummy})
+
+print(f"✓ Input shape: {sess.get_inputs()[0].shape}")
+print(f"✓ Output shape: {outputs[0].shape}")
+assert outputs[0].shape == (1, 10), "Output shape should be (1, 10)"
+print("✅ ONNX model verified!")
+EOF
+
+      - name: Commit ONNX model
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          if [ -f models/tomato_model.onnx ]; then
+            git add models/tomato_model.onnx
+            git commit -m "chore: auto-convert model H5→ONNX [skip ci]"
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
+          fi
+
+      - name: Upload ONNX to Release
+        if: success()
+        uses: softprops/action-gh-release@v1
+        with:
+          files: models/tomato_model.onnx
+          tag_name: model-onnx-latest
+          body: |
+            Automatically converted ONNX model
+            Size: Check file details
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
