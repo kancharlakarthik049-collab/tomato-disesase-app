@@ -59,16 +59,27 @@ input_name = None
 def load_model():
     """Load ONNX model at startup."""
     global session, input_name
-    try:
-        session = ort.InferenceSession(
-            MODEL_PATH,
-            providers=['CPUExecutionProvider']
+    logger.info("="*50)
+    logger.info(f"Loading model from: {MODEL_PATH}")
+    logger.info(f"File exists: {os.path.exists(MODEL_PATH)}")
+    if os.path.exists(MODEL_PATH):
+        size = os.path.getsize(MODEL_PATH)/1024/1024
+        logger.info(f"File size: {size:.1f} MB")
+    logger.info("="*50)
+
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(
+            f"Model not found: {MODEL_PATH}\n"
+            "Model should have been downloaded during build step.\n"
+            "Check build logs for download errors."
         )
-        input_name = session.get_inputs()[0].name
-        logger.info(f"ONNX model loaded from {MODEL_PATH}")
-    except Exception as e:
-        logger.error(f"Model load failed: {e}")
-        raise
+
+    session = ort.InferenceSession(
+        MODEL_PATH,
+        providers=['CPUExecutionProvider']
+    )
+    input_name = session.get_inputs()[0].name
+    logger.info("Model loaded successfully!")
 
 # Load model at startup
 load_model()
