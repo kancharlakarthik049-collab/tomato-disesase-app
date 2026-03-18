@@ -5,15 +5,19 @@
     plan: free
     buildCommand: chmod +x build.sh && ./build.sh
     startCommand: gunicorn app:app --workers 1 --timeout 120 --bind 0.0.0.0:$PORT
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
-      - key: MODEL_PATH
-        value: models/tomato_model.onnx
-      - key: DEBUG_MODE
-        value: "false"
-      - key: CONF_THRESH
-        value: "0.60"
-      - key: GOOGLE_DRIVE_MODEL_ID
-        value: 1tr7cbowX-OdEFIpG3d4c0bcYeZfdSHgI
-        sync: false
+    services:
+      - type: web
+        name: tomato-disease-app
+        env: python
+        plan: free
+        buildCommand: chmod +x build.sh && bash build.sh
+        startCommand: gunicorn app:app --workers 1 --timeout 120 --bind 0.0.0.0:$PORT
+        envVars:
+          - key: PYTHON_VERSION
+            value: 3.11.9
+          - key: MODEL_PATH
+            value: models/tomato_model.onnx
+          - key: CONF_THRESH
+            value: "0.60"
+          - key: DEBUG_MODE
+            value: "false"

@@ -1,8 +1,8 @@
 ﻿# Model files (large, not tracked in git)
-*.h5
-*.onnx
-*.tflite
-*.pb
+models/*.onnx
+models/*.h5
+models/*.tflite
+models/*.pkl
 
 # Python
 __pycache__/

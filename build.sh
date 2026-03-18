@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -e
+#!/usr/bin/env bash
+set -e
 
 echo "=== STEP 1: Upgrading pip ==="
 pip install --upgrade pip
