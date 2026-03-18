@@ -1,9 +1,16 @@
 import os
 import io
+# Silence GPU/CUDA warnings before any other imports
+import os
+os.environ['CUDA_VISIBLE_DEVICES']  = ''
+os.environ['ORT_LOGGING_LEVEL']     = '3'
+
+import io
 import logging
-import json
-import shutil
 import base64
+import traceback
+import sys
+
 from flask import Flask, request, render_template, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
@@ -12,10 +19,103 @@ from PIL import Image
 import onnxruntime as ort
 import cv2
 
-# Initialize Flask app
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 CORS(app)
 
+UPLOAD_FOLDER     = 'static/uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'bmp'}
+MODEL_PATH        = os.getenv('MODEL_PATH', 'models/tomato_model.onnx')
+CONF_THRESH       = float(os.getenv('CONF_THRESH', '0.60'))
+GREEN_H_MIN       = int(os.getenv('GREEN_H_MIN', '25'))
+GREEN_H_MAX       = int(os.getenv('GREEN_H_MAX', '100'))
+S_MIN             = int(os.getenv('S_MIN', '40'))
+V_MIN             = int(os.getenv('V_MIN', '40'))
+GREEN_PROP_THRESH = float(os.getenv('GREEN_PROP_THRESH', '0.03'))
+APP_VERSION       = '2.0.0'
+
+app.config['UPLOAD_FOLDER']      = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+CLASS_LABELS = [
+    'Bacterial_spot', 'Early_blight', 'Late_blight',
+    'Leaf_Mold', 'Septoria_leaf_spot', 'Spider_mites',
+    'Target_Spot', 'Yellow_Leaf_Curl_Virus',
+    'Mosaic_virus', 'Healthy'
+]
+
+session     = None
+input_name  = None
+output_name = None
+
+def load_model():
+    global session, input_name, output_name
+
+    logger.info("="*50)
+    logger.info("LOADING MODEL")
+    logger.info(f"Path      : {MODEL_PATH}")
+    logger.info(f"Exists    : {os.path.exists(MODEL_PATH)}")
+
+    if os.path.exists(MODEL_PATH):
+        size = os.path.getsize(MODEL_PATH) / 1024 / 1024
+        logger.info(f"Size      : {size:.1f} MB")
+
+        # Detect corrupted download (HTML instead of ONNX)
+        with open(MODEL_PATH, 'rb') as f:
+            header = f.read(8)
+        if header[0:1] == b'<':
+            logger.error("CORRUPTED: file is HTML not ONNX binary!")
+            logger.error("Google Drive returned a warning page.")
+            logger.error("Delete the file and re-download correctly.")
+            os.remove(MODEL_PATH)
+            raise ValueError("Model file is corrupted HTML — not ONNX")
+
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(f"Model missing: {MODEL_PATH}")
+
+    so = ort.SessionOptions()
+    so.log_severity_level    = 3
+    so.inter_op_num_threads  = 1
+    so.intra_op_num_threads  = 1
+
+    session    = ort.InferenceSession(
+        MODEL_PATH,
+        sess_options=so,
+        providers=['CPUExecutionProvider']
+    )
+    input_name  = session.get_inputs()[0].name
+    output_name = session.get_outputs()[0].name
+
+    logger.info(f"Input     : {input_name} {session.get_inputs()[0].shape}")
+    logger.info(f"Output    : {output_name} {session.get_outputs()[0].shape}")
+    logger.info(f"Classes   : {len(CLASS_LABELS)}")
+    logger.info("MODEL READY")
+    logger.info("="*50)
+
+try:
+    load_model()
+except Exception as e:
+    logger.error("="*50)
+    logger.error(f"STARTUP FAILED: {e}")
+    logger.error("="*50)
+    traceback.print_exc()
+    sys.exit(1)
+app = Flask(__name__)
+CORS(app)
+try:
+    load_model()
+except Exception as e:
+    logger.error("="*50)
+    logger.error(f"STARTUP FAILED: {e}")
+    logger.error("="*50)
+    traceback.print_exc()
+    sys.exit(1)
 # Configuration constants
 MODEL_PATH = os.getenv('MODEL_PATH', 'models/tomato_model.onnx')
 UPLOAD_FOLDER = 'static/uploads'
